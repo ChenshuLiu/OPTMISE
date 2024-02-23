@@ -12,7 +12,7 @@ Make sure you have pip installed on your device, change to the directory that yo
 cd /desired_directory
 git clone [repository link]
 ```
-The metadata of the software is contained in the `LSTM APP.spec` file and requires the `pyinstaller` module in Python. To install the pyinstaller module, please use:
+The metadata of the software is contained in the `LSTM APP.spec` file and requires the `pyinstaller` module in Python (refer to official documentary: [pyinstaller link](https://pyinstaller.org/en/stable/)). To install the pyinstaller module, please use:
 ```bash
 pip install pyinstaller
 pip3 install pyinstaller
@@ -21,5 +21,6 @@ Then, locate the folder that contains the `LSTM APP.spec` file and run the follo
 ```bash
 pyinstaller LSTM\ APP.spec
 ```
+![Dist folder](docs/distfolder.png)
 This will create two new folders titled 'build' and 'dist'. The executable file in the 'dist' folder will be the runnable software.
 ### Windows
