@@ -5,8 +5,6 @@ Welcome to the Github repository for the software complementary to the mechanoch
 
 This repository is meant as supporting material for the publication (publication link here).
 
-![Paper Diagram](Background_App.png)
-
 ## Installation
 ### MacOS
 Make sure you have pip installed on your device, change to the directory that you want to store the software dependencies at, and clone this repository:
@@ -14,7 +12,14 @@ Make sure you have pip installed on your device, change to the directory that yo
 cd /desired_directory
 git clone [repository link]
 ```
-
-
+The metadata of the software is contained in the `LSTM APP.spec` file and requires the `pyinstaller` module in Python. To install the pyinstaller module, please use:
+```bash
+pip install pyinstaller
+pip3 install pyinstaller
+```
+Then, locate the folder that contains the `LSTM APP.spec` file and run the following:
+```bash
+pyinstaller LSTM\ APP.spec
+```
 
 ### Windows
