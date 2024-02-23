@@ -21,5 +21,5 @@ Then, locate the folder that contains the `LSTM APP.spec` file and run the follo
 ```bash
 pyinstaller LSTM\ APP.spec
 ```
-
+This will create two new folders titled 'build' and 'dist'. The executable file in the 'dist' folder will be the runnable software.
 ### Windows
