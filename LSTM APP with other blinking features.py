@@ -79,7 +79,10 @@ def upload_video():
 
         ## realtime ROI tracking and pressure prediction
         while True:
-            _, frame = video_cap.read()
+            ret, frame = video_cap.read()
+            if not ret: # quit algorithm when video reaches the end
+                print("End of video")
+                break
             tracking_success, roi_coords = tracker.update(frame)
             blink_status_store.add(not tracking_success)
             # blinking rate per minute
