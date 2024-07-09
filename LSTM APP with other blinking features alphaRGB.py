@@ -6,13 +6,14 @@ import numpy as np
 import pandas as pd
 import torch
 from LSTM_Pressure_RGB_model import LSTMModel
-from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep, RollingBuffer
+from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep, RollingBuffer, gray_world_assumption
 
 # loading the pressure RGB neural network model
 input_size = 3
 hidden_size = 128
 num_layers = 3
 output_size = 1
+look_back = 10
 
 Pressure_RGB_model = LSTMModel(input_size, hidden_size, num_layers, output_size)
 #current_dir = os.getcwd()
@@ -20,24 +21,28 @@ current_file_directory = os.path.dirname(os.path.abspath(__file__))
 
 ##### Loading LSTM Model Pretrained Weights #####
 #state_dict = torch.load(f'{current_file_directory}/P_RGBLSTM_alpha_e200.pt')
-state_dict = torch.load('/Users/chenshu/Documents/Research/Terasaki Research/Mechenochromic (Zhu)/Model Log/LSTM+3FC/W alpha 2.0 30lookback/P_RGBLSTM_alpha2.0_e20.pt')
+state_dict = torch.load('/Users/chenshu/Documents/Research/Terasaki Research/Mechenochromic (Zhu)/Model Log/LSTM+2FC Classification/W alpha 3.0 regression 3lookback balanced/P_RGBLSTM_classification_alpha3.0reg_balanced_e10.pt')
 Pressure_RGB_model.load_state_dict(state_dict)
 Pressure_RGB_model.eval()
 
 # points = [] # storing the vertices of the ROI (global)
 # LSTM_data = torch.tensor(np.zeros(shape = (9, 3)), dtype = torch.float32)
-alpha = {'red': 0.19472346,
-         'green': 0.82113903,
-         'blue': 0.6681795} # for alpha blending correction
-
+# alpha = {'red': 0.19472346,
+#          'green': 0.82113903,
+#          'blue': 0.6681795} # for alpha blending correction
+# alpha_tensor = torch.tensor([alpha['red'], alpha['green'], alpha['blue']], dtype = torch.float32)
+alpha_regression_tensor = {
+    'red_alpha_regression': lambda X: torch.dot(X, torch.tensor([0.006096, -5.24e-05])) + torch.tensor(-0.2954),
+    'green_alpha_regression': lambda X: torch.dot(X, torch.tensor([0.006671, 0.0004853])) + torch.tensor(-0.4633),
+    'blue_alpha_regression': lambda X: torch.dot(X, torch.tensor([0.003739, -0.001341])) + torch.tensor(0.2765)
+}
 def upload_video():
     file_path = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.mov *.avi")])
     points = []
     iris_center = []
     background_points = []
     #LSTM_data = torch.tensor(np.zeros(shape = (99, 3)), dtype = torch.float32)
-    LSTM_data = torch.tensor(np.full((99,3), 255), dtype = torch.float32)
-    alpha_tensor = torch.tensor([alpha['red'], alpha['green'], alpha['blue']], dtype = torch.float32)
+    LSTM_data = torch.tensor(np.full((look_back-1,3), 255), dtype = torch.float32)
     if file_path:
         video_cap = cv2.VideoCapture(file_path)
         # store blink (bool) information for blink tracking (e.g. blinking rate per minute, blink interval)
@@ -55,7 +60,9 @@ def upload_video():
                     (0, 255, 0), 2)
 
             # Initialize the KCF tracker
-            tracker = cv2.TrackerKCF_create()
+            kcf_params = cv2.TrackerKCF_Params()
+            kcf_params.detect_thresh = 0.5
+            tracker = cv2.TrackerKCF_create(kcf_params)
             tracker.init(first_frame, (x, y, w, h))
 
             # for ROI selection
@@ -96,18 +103,27 @@ def upload_video():
             background_RGB = []
             for i in range(3):
                 std_frame = histogram_grayworld_whitebalance(ROIselect_frame)
+                #std_frame = gray_world_assumption(ROIselect_frame)
                 channel_values = std_frame[:, :, i][mask == 255]
                 background_values = std_frame[:, :, i][background_mask == 255]
                 reference_RGB.append(np.mean(channel_values))
                 background_RGB.append(np.mean(background_values))
-            reference_RGB = torch.tensor(np.array(reference_RGB), dtype = torch.float32)
-            background_reference_RGB = torch.tensor(np.array(background_RGB), dtype = torch.float32)
+            reference_B, reference_G, reference_R = reference_RGB # originally BGR, need to change into RGB
+            reference_RGB = torch.tensor([reference_R, reference_G, reference_B], dtype = torch.float32) # this is the blended color in alpha correction, shape [3] tensor object
+            print(f"blended reference_RGB is {reference_RGB}")
+            background_B, background_G, background_R = background_RGB
+            background_reference_RGB = torch.tensor([background_R, background_G, background_B], dtype = torch.float32)
+            print(f"background of reference frame is {background_reference_RGB}")
+            # to do calculate red, green, blue
+            # to do, validate that the RGB is indeed RGB, not BGR
+            alpha_tensor = torch.tensor([alpha_regression_tensor['red_alpha_regression'](torch.tensor([reference_RGB[0], background_reference_RGB[0]], dtype = torch.float32)),
+                                         alpha_regression_tensor['green_alpha_regression'](torch.tensor([reference_RGB[1], background_reference_RGB[1]], dtype = torch.float32)),
+                                         alpha_regression_tensor['green_alpha_regression'](torch.tensor([reference_RGB[2], background_reference_RGB[2]], dtype = torch.float32))], 
+                                         dtype = torch.float32)
             reference_foreground_RGB = (reference_RGB - (1-alpha_tensor)*background_reference_RGB)/alpha_tensor
+            print(f"reference foreground RGB is: {reference_foreground_RGB}")
             # LSTM data prep
             LSTM_data = torch.cat((LSTM_data, reference_RGB.unsqueeze(0)), dim = 0)
-
-            # alpha blending correction
-            print(background_RGB)
 
         ## realtime ROI tracking and pressure prediction
         while True:
@@ -148,20 +164,25 @@ def upload_video():
 
                 for i in range(3):
                     std_frame = histogram_grayworld_whitebalance(frame)
+                    #std_frame = gray_world_assumption(frame)
                     channel_values = std_frame[:, :, i][mask == 255]
                     background_values = std_frame[:, :, i][background_mask == 255]
                     RGB_mean.append(np.mean(channel_values))
                     background_RGB_mean.append(np.mean(background_values))
                 blue, green, red = RGB_mean
                 blue_back, green_back, red_back = background_RGB_mean
-                
+                alpha_tensor = torch.tensor([alpha_regression_tensor['red_alpha_regression'](torch.tensor([red, red_back], dtype = torch.float32)),
+                                             alpha_regression_tensor['green_alpha_regression'](torch.tensor([green, green_back], dtype = torch.float32)),
+                                             alpha_regression_tensor['green_alpha_regression'](torch.tensor([blue, blue_back], dtype = torch.float32))], 
+                                             dtype = torch.float32)
+                print(f"alpha tensor for each frame: {alpha_tensor}")
                 rgb_tensor = torch.tensor([red, green, blue], dtype = torch.float32)
                 background_tensor = torch.tensor([red_back, green_back, blue_back], dtype = torch.float32)
                 # normalized RGB value to the first/selected frame
                 # assuming the ratio between the difference of RGB and the reference frame is the predictor
                 rgb_tensor = (rgb_tensor - (1-alpha_tensor)*background_tensor)/(alpha_tensor) - reference_foreground_RGB # alpha corrected
                 LSTM_data = torch.cat((LSTM_data, rgb_tensor.unsqueeze(0)), axis = 0)
-                LSTM_data = LSTM_data[-100:]
+                LSTM_data = LSTM_data[-10:]
                 LSTM_input = lstm_input_prep(LSTM_data)
 
                 ##### blinking features #####
