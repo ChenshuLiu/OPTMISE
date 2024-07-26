@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from LSTM_Pressure_RGB_model import LSTMModel
-from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep, RollingBuffer
+from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep, RollingBuffer, RollingBuffer_multidim
 
 # loading the pressure RGB neural network model
 input_size = 3
@@ -37,6 +37,8 @@ def upload_video():
         # then use the number of boolean values (np.sum(bool_blink)/len(bool_blink)) to determine blink rate
         blink_time_store = RollingBuffer(int(fps*60)) # storing the time stamp of each frame
         blink_status_store = RollingBuffer(int(fps*60)) # storing the status (boolean open/close) of each frame
+        #smooth_pressure_reading = RollingBuffer_multidim(int(fps)) # for rollingbuffer of three channels
+        smooth_pressure_reading = RollingBuffer(int(fps))
         ret, first_frame = video_cap.read()
         if ret:
             large_roi = cv2.selectROI(first_frame)
@@ -118,7 +120,7 @@ def upload_video():
                 rgb_tensor = torch.tensor([red, green, blue], dtype = torch.float32)
                 # normalized RGB value to the first/selected frame
                 # assuming the ratio between the difference of RGB and the reference frame is the predictor
-                ref_rgb_tensor = (rgb_tensor - reference_RGB)/reference_RGB
+                ref_rgb_tensor = (rgb_tensor - reference_RGB)/(reference_RGB + 1e-3)
                 LSTM_data = torch.cat((LSTM_data, ref_rgb_tensor.unsqueeze(0)), axis = 0)
                 LSTM_data = LSTM_data[-10:]
                 LSTM_input = lstm_input_prep(LSTM_data)
@@ -127,11 +129,14 @@ def upload_video():
                 # eyelid pressure classification
                 with torch.no_grad():
                     pressure_pred = Pressure_RGB_model(LSTM_input).item()
+                smooth_pressure_reading.add(pressure_pred)
+                smoothed_average_pressure = np.mean(smooth_pressure_reading.get())
                 
                 text = (f"Red channel is {red}", 
                         f"Green channel is {green}", 
                         f"Blue channel is {blue}", 
-                        f"Predicted Pressure is {pressure_pred}", 
+                        #f"Predicted Pressure is {pressure_pred}", 
+                        f"Predicted Pressure is {smoothed_average_pressure}",
                         #f"Blink rate of past minute {blink_rate}",
                         f"There are {blink_rate * 60} blinks in the past minute",
                         "Press q to end session")
@@ -156,7 +161,7 @@ def upload_video():
                 error_frame = frame.copy()
                 cv2.putText(error_frame, "Tracking failed!", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
                 cv2.imshow('Image', error_frame)
-            print(blink_status_store.get())
+            #print(blink_status_store.get())
             if cv2.waitKey(1) == ord('q'):
                 break
 

@@ -98,3 +98,41 @@ class RollingBuffer:
         np.ndarray: The contents of the buffer in order.
         """
         return self.buffer[:self.current_size]
+    
+class RollingBuffer_multidim:
+    def __init__(self, size, dtype=np.float64):
+        """
+        Initializes the rolling buffer.
+
+        Args:
+        size (tuple): row by column of the dimension.
+        dtype: The data type of the elements in the buffer. Default is np.float64.
+        """
+        self.buffer = np.zeros(size, dtype=dtype)
+        self.size = size[1] # length of each channel
+        self.current_size = 0  # Keeps track of the current number of elements in the buffer
+
+    def add(self, element):
+        """
+        Adds a new element to the buffer.
+
+        Args:
+        element: The element to add to the buffer.
+        """
+        if self.current_size < self.size:
+            # If the buffer is not full, add the element to the end and increment the size
+            self.buffer[:, self.current_size] = element
+            self.current_size += 1
+        else:
+            # If the buffer is full, shift the array left and add the new element to the last index
+            self.buffer[:-1] = self.buffer[1:]
+            self.buffer[-1] = element
+
+    def get(self, col_idx):
+        """
+        Returns the contents of the buffer in order.
+
+        Returns:
+        np.ndarray: The contents of the buffer in order.
+        """
+        return self.buffer[col_idx, :self.current_size]
