@@ -1,6 +1,7 @@
 # OPTMISE
 Welcome to the OPTMISE Github repository. **OPTMISE** stands for **O**cular **P**latform for **T**racking **M**echano-Electro-Chromic **I**ntelligent **S**ensing **E**-display. This repository contains the software component of OPTMISE complement to the mechanochromic material used for diagnosing dry eye syndrome (DES)! The mechanochromic SCL lens offers an **less invasive** measuring alternative to traditional methods that involve setting non-conformable foreign measuring apparatus between the eyeball and the eyelid. The customized software creates an interface to allow users to dynamically analyze the eye pressure captured by the mechanochromic lens, offering both the option to upload videos or use a built-in webcam to capture the change in color in real-time.
-![project pipeline](docs/Project Pipeline.png)
+
+![Project Pipeline](docs/ProjectPipeline.png)
 
 ## Table of Contents
 1. [Repo Structure](#repo-structure)
