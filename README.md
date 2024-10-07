@@ -8,6 +8,11 @@ Welcome to the OPTMISE Github repository. **OPTMISE** stands for **O**cular **P*
     1. [Using the Code Directly](#using-the-code-directly)
     2. [Using the OPTMISE Software](#using-the-optmise-software)
 3. [Software in Action](#software-in-action)
+    1. [Mockup Setup Demo](#mockup-setup-demo)
+    2. [Animal & Human Study Demo](#animal--human-study-demo)
+4. [Project Descriptions](#project-descriptions)
+    1. [Motivation](#motivation)
+    2. [Model Logic](#model-logic)
 
 ## Repo Structure
 ```
@@ -66,3 +71,16 @@ Upon launching the software:
 | Animal Study | Human Study |
 |:-------:|:-------:|
 | ![Animal Study](docs/animalstudydemo.gif) | ![Human Study](docs/humanstudydemo.gif) |
+
+### Project Descriptions
+#### Motivation
+Eyelid movements play a crucial role in maintaining ocular health, and specific blink patterns have been associated with ocular surface disorders, neurological conditions, and systemic health issues. Current monitoring tools are limited by their reliance on external sensors or invasive designs, making it challenging to capture realistic blink behaviors over extended periods.
+
+To address these limitations, OPTMISE integrates a triboelectric nanogenerator (TENG) and a mechano-electro-chromic display (MECD) into soft contact lenses, enabling non-invasive and continuous monitoring of eyelid pressure through color changes. This design ensures comfort and compatibility with daily activities while maintaining long-term measurement stability.
+
+The software component of OPTMISE utilizes a deep learning-driven computer vision system that analyzes time-series RGB data to quantify blink patterns such as eyelid pressure, blink rate, and inter-blink intervals. By combining these advanced hardware and software features, the platform provides a comprehensive and nuanced understanding of ocular and systemic health, and has the potential to revolutionize human-machine interactions.
+
+#### Model Logic
+The pressure quantification model is based on a stacked Long Short-Term Memory (LSTM) architecture combined with a multi-layer perceptron to predict eyelid pressure based on RGB values in a specified region of interest (ROI). The model incorporates a lookback mechanism to capture temporal dependencies by considering RGB values from previous frames. It was trained using PyTorch, with batches of 32 samples over 200 iterations. The Adam optimizer was used for optimization, and the Mean Square Error (MSE) loss function quantified the difference between predicted and actual pressure values.
+
+![Model Pipeline](docs/ModelPipeline.png)
