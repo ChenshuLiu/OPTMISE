@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from LSTM_Pressure_RGB_model import LSTMModel
-from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep
+from Accessory_func import histogram_grayworld_whitebalance, large_small_diff, new_smallROI, lstm_input_prep, RollingBuffer, RollingBuffer_multidim
 
 # loading the pressure RGB neural network model
 input_size = 3
@@ -16,7 +16,9 @@ output_size = 1
 Pressure_RGB_model = LSTMModel(input_size, hidden_size, num_layers, output_size)
 #current_dir = os.getcwd()
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-state_dict = torch.load(f'{current_file_directory}/LSTM_P_RGB_e200.pt')
+
+##### Loading LSTM Model Pretrained Weights #####
+state_dict = torch.load(f'{current_file_directory}/P_RGBLSTM_e200.pt')
 Pressure_RGB_model.load_state_dict(state_dict)
 Pressure_RGB_model.eval()
 
@@ -29,6 +31,14 @@ def upload_video():
     LSTM_data = torch.tensor(np.zeros(shape = (9, 3)), dtype = torch.float32)
     if file_path:
         video_cap = cv2.VideoCapture(file_path)
+        # store blink (bool) information for blink tracking (e.g. blinking rate per minute, blink interval)
+        fps = video_cap.get(cv2.CAP_PROP_FPS)
+        # set the number of element to store in the blink_rate_storage to the number of frames per minute
+        # then use the number of boolean values (np.sum(bool_blink)/len(bool_blink)) to determine blink rate
+        blink_time_store = RollingBuffer(int(fps*60)) # storing the time stamp of each frame
+        blink_status_store = RollingBuffer(int(fps*60)) # storing the status (boolean open/close) of each frame
+        #smooth_pressure_reading = RollingBuffer_multidim(int(fps)) # for rollingbuffer of three channels
+        smooth_pressure_reading = RollingBuffer(int(fps))
         ret, first_frame = video_cap.read()
         if ret:
             large_roi = cv2.selectROI(first_frame)
@@ -71,8 +81,14 @@ def upload_video():
 
         ## realtime ROI tracking and pressure prediction
         while True:
-            _, frame = video_cap.read()
+            ret, frame = video_cap.read()
+            if not ret: # quit algorithm when video reaches the end
+                print("End of video")
+                break
             tracking_success, roi_coords = tracker.update(frame)
+            blink_status_store.add(not tracking_success)
+            # blinking rate per minute
+            blink_rate = np.sum(blink_status_store.get())/len(blink_status_store.get())
             """
                 1. create an empty (some easily manipulable datatype) to store the sequential time series data
                 2. create a helper to dump the storage with specified length of memory (e.g. dumping the series data storage after 10 times steps)
@@ -102,24 +118,34 @@ def upload_video():
                 blue, green, red = RGB_mean
                 
                 rgb_tensor = torch.tensor([red, green, blue], dtype = torch.float32)
-                # relative RGB value to the first/selected frame
-                ref_rgb_tensor = rgb_tensor - reference_RGB
+                # normalized RGB value to the first/selected frame
+                # assuming the ratio between the difference of RGB and the reference frame is the predictor
+                ref_rgb_tensor = (rgb_tensor - reference_RGB)/(reference_RGB + 1e-3)
                 LSTM_data = torch.cat((LSTM_data, ref_rgb_tensor.unsqueeze(0)), axis = 0)
                 LSTM_data = LSTM_data[-10:]
                 LSTM_input = lstm_input_prep(LSTM_data)
+
+                ##### blinking features #####
+                # eyelid pressure classification
                 with torch.no_grad():
                     pressure_pred = Pressure_RGB_model(LSTM_input).item()
+                smooth_pressure_reading.add(pressure_pred)
+                smoothed_average_pressure = np.mean(smooth_pressure_reading.get())
                 
                 text = (f"Red channel is {red}", 
                         f"Green channel is {green}", 
                         f"Blue channel is {blue}", 
-                        f"Predicted Pressure is {pressure_pred}", 
+                        #f"Predicted Pressure is {pressure_pred}", 
+                        f"Predicted Pressure is {smoothed_average_pressure}",
+                        #f"Blink rate of past minute {blink_rate}",
+                        f"There are {blink_rate * 60} blinks in the past minute",
                         "Press q to end session")
+                
+                ##### update tracked regions & display real-time information #####
                 # draw the lens ROI
                 cv2.rectangle(frame, (int(roi_coords[0]), int(roi_coords[1])),
                     (int(roi_coords[0] + roi_coords[2]), int(roi_coords[1] + roi_coords[3])),
                     (0, 255, 0), 2)  # (0, 255, 0) is the color (green), and 2 is the thickness
-
                 # draw the color changing ROI
                 for vertex_id in range(pts.reshape((-1, 1, 2)).shape[0]):
                     vertex = tuple(pts.reshape((-1, 1, 2))[vertex_id, :, :][0])
@@ -131,10 +157,11 @@ def upload_video():
                     y = y0 + i*dy
                     cv2.putText(frame, line, (50, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, lineType = cv2.LINE_AA)
                 cv2.imshow('Image', frame)
-            else:
+            else: # when the lens was not detected
                 error_frame = frame.copy()
                 cv2.putText(error_frame, "Tracking failed!", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
                 cv2.imshow('Image', error_frame)
+            #print(blink_status_store.get())
             if cv2.waitKey(1) == ord('q'):
                 break
 
@@ -148,6 +175,12 @@ def webcam_capture():
     # keep showing the video until find good frame to use
     exit_while = False
     while True:
+         # store blink (bool) information for blink tracking (e.g. blinking rate per minute, blink interval)
+        fps = video_cap.get(cv2.CAP_PROP_FPS)
+        # set the number of element to store in the blink_rate_storage to the number of frames per minute
+        # then use the number of boolean values (np.sum(bool_blink)/len(bool_blink)) to determine blink rate
+        blink_time_store = RollingBuffer(int(fps*60)) # storing the time stamp of each frame
+        blink_status_store = RollingBuffer(int(fps*60)) # storing the status (boolean open/close) of each frame
         ret, first_frame = video_cap.read()
         selection_frame = first_frame.copy()
         guide_selectstartframe = 'Press the "y" key on keyboard to select the first frame to get started'
@@ -218,6 +251,9 @@ def webcam_capture():
     while True:
         _, frame = video_cap.read()
         tracking_success, roi_coords = tracker.update(frame)
+        blink_status_store.add(not tracking_success)
+        # blinking rate per minute
+        blink_rate = np.sum(blink_status_store.get())/len(blink_status_store.get())
         """
             1. create an empty (some easily manipulable datatype) to store the sequential time series data
             2. create a helper to dump the storage with specified length of memory (e.g. dumping the series data storage after 10 times steps)
@@ -255,7 +291,8 @@ def webcam_capture():
             text = (f"Red channel is {red}", 
                     f"Green channel is {green}", 
                     f"Blue channel is {blue}", 
-                    f"Predicted Pressure is {pressure_pred}", 
+                    f"Predicted Pressure is {pressure_pred}",
+                    f"There are {blink_rate * 60} blinks in the past minute", 
                     "Press q to exit session")
             # draw the lens ROI
             cv2.rectangle(frame, (int(roi_coords[0]), int(roi_coords[1])),
