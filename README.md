@@ -1,16 +1,13 @@
 # OPTMISE
-Welcome to the OPTMISE Github repository. **OPTMISE** stands for **O**cular **P**latform for **T**racking **M**echano-Electro-Chromic **I**ntelligent **S**ensing **E**-display. This repository contains the software component of OPTMISE complement to the mechanochromic material used for diagnosing dry eye syndrome (DES)! The mechanochromic SCL lens offers an **less invasive** measuring alternative to traditional methods that involve setting non-conformable foreign measuring apparatus between the eyeball and the eyelid. The customized software creates an interface to allow users to dynamically analyze the eye pressure captured by the mechanochromic lens, offering both the option to upload videos or use a built-in webcam to capture the change in color in real-time.
-
+Welcome to the OPTMISE Github repository. **OPTMISE** stands for **O**cular **P**latform with **T**elemetric **M**echano-Electro-Chromic **I**ntelligent **S**ensing **E**cosystem. This repository contains the software component of OPTMISE complement to the mechanochromic material used for diagnosing dry eye syndrome (DES)! The mechanochromic SCL lens offers an **less invasive** measuring alternative to traditional methods that involve setting non-conformable foreign measuring apparatus between the eyeball and the eyelid. The customized software creates an interface to allow users to dynamically analyze the eye pressure captured by the mechanochromic lens, offering both the option to upload videos or use a built-in webcam to capture the change in color in real-time. The following figure is the project pipeline.
 ![Project Pipeline](docs/ProjectPipeline.png)
 
 ## Table of Contents
 1. [Repo Structure](#repo-structure)
 2. [Usage](#usage)
+    1. [Using the Code Directly](#using-the-code-directly)
+    2. [Using the OPTMISE Software](#using-the-optmise-software)
 3. [Software in Action](#software-in-action)
-
-![Interface Demo](docs/demogif.gif)
-
-This repository is meant as supporting material for the publication (publication link here).
 
 ## Repo Structure
 ```
@@ -55,3 +52,17 @@ pyinstaller LSTM\ APP.spec
 This will create two new folders titled 'build' and 'dist'. The executable file in the 'dist' folder will be the runnable software.
 
 ### Software in Action
+#### Mockup Setup Demo
+The software supports both real-time monitoring through the computer's webcam and analysis of pre-recorded close-up videos of the OPTMISE on the subject's eye. This dual functionality enables immediate analysis and the generation of in-situ recordings, which is especially useful for clinical applications and telemedicine, allowing users to self-record videos that clinicians can later analyze remotely.
+
+![Interface Demo](docs/demogif.gif)
+
+Upon launching the software:
+1. Users are first prompted to select the eye region by diagonally dragging the cursor to outline the lens area. This crucial step ensures that the subsequent processing, guided by an eye-tracking algorithm, occurs only when the OPTMISE is clearly visible, preventing issues such as eyelid obstruction or missed captures due to eye movement. If visibility is compromised, the software displays an error message, indicating a failure in pressure measurement. 
+2. Define the ROI region by clicking on the polygonal vertices, after which pressure predictions per frame are calculated and displayed on the upper-left corner of the screen.
+3. Hit enter again to start the vide analysis and the analysis results are displayed at the top left corner of the screen.
+
+#### Animal & Human Study Demo
+| Animal Study | Human Study |
+|:-------:|:-------:|
+| ![Animal Study](docs/animalstudydemo.gif) | ![Human Study](docs/humanstudydemo.gif) |
